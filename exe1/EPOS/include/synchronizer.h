@@ -8,8 +8,10 @@
 
 __BEGIN_SYS
 
-class Synchronizer_Common
-{
+class Synchronizer_Common {
+private:
+    Thread::Queue queue;
+
 protected:
     Synchronizer_Common() {}
 
@@ -22,8 +24,29 @@ protected:
     void begin_atomic() { Thread::lock(); }
     void end_atomic() { Thread::unlock(); }
 
-    void sleep() { Thread::yield(); } // implicit unlock()
-    void wakeup() { end_atomic(); }
+    void sleep() { 
+        //Thread::yield(); 
+        begin_atomic();
+        Thread* t = Thread::self();
+        t->state = Thread::WAITING;
+        Thread::_suspended.insert(&t->_link);
+
+        // if(!Thread::_ready.empty()){
+        //     Thread* nextThread = Thread::_ready.remove()->object();
+        //     nextThread
+        // }
+        Thread::yield();
+        end_atomic();
+    } // implicit unlock()
+    void wakeup() { 
+        begin_atomic();
+        if(!Thread::_suspended.empty()){
+            Thread* t = Thread::_suspended.remove()->object();
+            t->state = Thread::READY;
+            Thread::_ready.insert(&t->_link);
+        }
+        end_atomic(); 
+    }
     void wakeup_all() { end_atomic(); }
 };
 
